@@ -1,0 +1,54 @@
+TTS: Text To Speech 
+
+These are models that take text as input and returns an audio file. 
+
+The input is a basic sentence such as "The dog jumped"
+
+We use a neural net of course but what kind? how the training achieved? whats the loss function? 
+
+
+
+Types of Text to speech models currently
+
+1. Autoregressive Models
+Tacotron / Tacotron 2
+
+Sequence-to-sequence with attention.
+
+Input: phonemes or character embeddings.
+
+Output: mel-spectrogram.
+
+Uses a vocoder (e.g., Griffin-Lim, WaveNet) to synthesize final waveform.
+
+Loss: MSE on spectrogram + guided attention loss.
+
+Strength: high-quality prosody.
+
+Weakness: slow inference, exposure bias.
+
+2. Non-Autoregressive / Parallel Models
+FastSpeech / FastSpeech 2
+
+Transformer-based model that predicts durations to remove autoregressive bottleneck.
+
+Input: text/phonemes + duration, pitch, energy predictors.
+
+Output: mel-spectrogram in parallel.
+
+Loss: MSE on mel-spectrogram + duration/pitch loss.
+
+Faster, more stable.
+
+3. End-to-End Models
+VITS (Variational Inference TTS)
+
+Combines variational autoencoders (VAE), normalizing flows, and GANs.
+
+Learns to directly synthesize waveform from text.
+
+Uses adversarial loss (GAN) and reconstruction loss.
+
+No intermediate spectrogram step required.
+
+State-of-the-art realism and speed.

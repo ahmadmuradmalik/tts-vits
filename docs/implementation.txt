@@ -1,0 +1,162 @@
+VITS Implementation Documentation
+
+1. Project Structure
+-------------------
+The project is organized into the following components:
+
+src/
+├── models/
+│   └── vits.py           # VITS model and components
+├── data/
+│   └── dataset.py        # Dataset and data processing
+├── training/
+│   └── trainer.py        # Training logic
+├── utils/
+│   ├── config.py         # Configuration management
+│   ├── loss.py           # Loss functions
+│   └── visualization.py  # Visualization utilities
+└── cli.py               # Command-line interface
+
+2. Model Architecture
+-------------------
+The VITS (Variational Inference with adversarial learning for Text-to-Speech) model consists of several key components:
+
+a) Text Encoder (TextEncoder):
+   - Converts input text into latent representations
+   - Uses embedding layer followed by convolutional layers
+   - Implements residual connections for better gradient flow
+   - Output: Text embeddings h_text
+
+b) Posterior Encoder (PosteriorEncoder):
+   - Encodes audio features into latent space
+   - Uses dilated convolutions with increasing dilation rates
+   - Output: Mean (μ) and log variance (log σ²) of the posterior distribution
+
+c) Decoder (Decoder):
+   - Converts latent representations to mel-spectrograms
+   - Uses normalizing flows for better quality
+   - Implements affine coupling layers for invertible transformations
+   - Output: Generated mel-spectrogram y_hat and log determinant
+
+d) Discriminator (Discriminator):
+   - Adversarial training component
+   - Uses spectral normalization for stability
+   - Multiple layers of 1D convolutions
+   - Output: Real/fake classification and feature maps
+
+3. Data Processing
+----------------
+The data processing pipeline is handled by:
+
+a) AudioProcessor:
+   - Handles audio loading and preprocessing
+   - Computes mel-spectrograms using torchaudio
+   - Supports resampling and mono conversion
+   - Configurable parameters for mel spectrogram computation
+
+b) TextProcessor:
+   - Handles text preprocessing and tokenization
+   - Supports custom vocabulary or default character set
+   - Converts text to sequence of token IDs
+
+c) TTSDataset:
+   - PyTorch Dataset implementation
+   - Loads text-audio pairs from metadata
+   - Handles variable length sequences
+   - Returns processed text and audio tensors
+
+4. Training Process
+------------------
+The training process is managed by TTSTrainer:
+
+a) Initialization:
+   - Sets up model, optimizer, and scheduler
+   - Configures mixed precision training
+   - Creates output directories
+   - Sets up logging
+
+b) Training Loop:
+   - Handles data loading and preprocessing
+   - Implements mixed precision training
+   - Computes and backpropagates losses
+   - Manages checkpointing
+   - Generates visualizations
+   - Logs training progress
+
+c) Loss Components:
+   - Reconstruction Loss (L1 loss on mel-spectrograms)
+   - KL Divergence Loss (for variational inference)
+   - Adversarial Loss (for discriminator)
+   - Feature Matching Loss (for discriminator features)
+   - Log Determinant Loss (from normalizing flows)
+
+5. Visualization
+--------------
+The visualization module provides:
+
+a) Flow Transformation Visualization:
+   - Shows transformed data through flow layers
+   - Plots log determinant values
+
+b) Loss Component Visualization:
+   - Tracks different loss components over time
+   - Helps monitor training progress
+
+c) Mel-Spectrogram Comparison:
+   - Compares real and generated mel-spectrograms
+   - Helps assess generation quality
+
+6. Configuration
+--------------
+The configuration system provides:
+
+a) Default Configuration:
+   - Model architecture parameters
+   - Training hyperparameters
+   - Data processing settings
+
+b) Configuration Management:
+   - Loading from YAML files
+   - Saving to YAML files
+   - Command-line interface for configuration
+
+7. Usage
+--------
+The model can be used in two ways:
+
+a) Command Line Interface:
+```bash
+# Training
+python -m src.cli train --config config.yaml --data-dir /path/to/data
+
+# Inference
+python -m src.cli infer --checkpoint model.pt --text "Hello world" --output speech.wav
+```
+
+b) Python API:
+```python
+from src.models.vits import VITS
+from src.training.trainer import TTSTrainer
+from src.utils.config import get_default_config
+
+# Initialize model and trainer
+config = get_default_config()
+trainer = TTSTrainer(config)
+
+# Training
+trainer.train(train_loader, num_epochs=1000)
+
+# Inference
+trainer.synthesize("Hello world", "output.wav")
+```
+
+8. Implementation Notes
+----------------------
+- Uses PyTorch for implementation
+- Supports both CPU and GPU training
+- Implements mixed precision training
+- Handles variable length sequences
+- Provides comprehensive logging
+- Includes visualization tools
+- Supports checkpointing
+- Implements proper error handling 

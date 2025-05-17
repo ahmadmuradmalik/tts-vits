@@ -1,0 +1,82 @@
+data:
+  # Audio parameters
+  sample_rate: 22050
+  n_fft: 1024
+  hop_length: 256
+  win_length: 1024
+  window: "hann"
+  
+  # Mel-spectrogram parameters
+  n_mel_channels: 80
+  n_mels: 80
+  mel_fmin: 0
+  mel_fmax: 8000
+  
+  # Text parameters
+  vocab_size: 256
+  text_cleaners: ["english_cleaners"]
+  add_eos: true
+  add_bos: true
+  
+  # Dataset parameters
+  segment_size: 8192
+  max_wav_value: 32768.0
+  use_phonemes: true
+  phoneme_language: "en-us"
+  phoneme_cache_path: "phoneme_cache"
+
+model:
+  # Encoder parameters
+  hidden_channels: 192
+  filter_channels: 768
+  filter_kernel_size: 3
+  n_heads: 2
+  n_layers: 6
+  kernel_size: 3
+  dilation_rate: 1
+  dropout: 0.1
+  
+  # Flow parameters
+  n_flows: 4
+  n_layers_flow: 4
+  use_spectral_norm: false
+  gin_channels: 256
+  
+  # Decoder parameters
+  upsample_rates: [8, 8, 2, 2]
+  upsample_initial_channel: 512
+  upsample_kernel_sizes: [16, 16, 4, 4]
+  resblock: "1"
+  resblock_kernel_sizes: [3, 7, 11]
+  resblock_dilation_sizes: [[1, 3, 5], [1, 3, 5], [1, 3, 5]]
+
+loss:
+  mel_weight: 45.0
+  duration_weight: 1.0
+  kl_weight: 1.0
+  flow_weight: 1.0
+  disc_weight: 1.0
+  gen_weight: 1.0
+  feature_weight: 1.0
+
+inference:
+  noise_scale: 0.667
+  noise_scale_w: 0.8
+  length_scale: 1.0
+  max_inference_len: 1000
+  use_deterministic: false
+  temperature: 1.0
+
+training:
+  batch_size: 16
+  epochs: 1000
+  learning_rate: 0.0002
+  betas: [0.8, 0.99]
+  eps: 1e-9
+  grad_clip_thresh: 1.0
+  warmup_epochs: 0
+  fp16_run: false
+  log_interval: 200
+  eval_interval: 1000
+  save_interval: 1000
+  seed: 1234 

@@ -1,0 +1,198 @@
+VITS CLI Documentation
+====================
+
+The VITS CLI provides a comprehensive interface for training, inference, and data management. This document details all available commands and their usage.
+
+Installation
+-----------
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Verify installation:
+   ```bash
+   python cli.py --version
+   ```
+
+Command Groups
+-------------
+The CLI is organized into four main command groups:
+1. train: Training-related commands
+2. infer: Inference-related commands
+3. data: Data management commands
+4. config: Configuration management commands
+
+Training Commands
+---------------
+The training commands handle model training and checkpoint management.
+
+1. Start Training:
+   ```bash
+   # Basic training with default config
+   python cli.py train start
+
+   # Training with custom config
+   python cli.py train start -c config.yaml
+
+   # Resume training from checkpoint
+   python cli.py train start -r checkpoint.pt
+
+   # Override training parameters
+   python cli.py train start -b 32 -l 0.0001 -n 1000
+   ```
+
+   Options:
+   - --config, -c: Path to configuration file
+   - --resume, -r: Path to checkpoint to resume from
+   - --data-dir, -d: Path to training data directory
+   - --output-dir, -o: Path to output directory
+   - --num-epochs, -n: Number of training epochs
+   - --batch-size, -b: Training batch size
+   - --learning-rate, -l: Learning rate
+
+Inference Commands
+----------------
+The inference commands handle text-to-speech generation.
+
+1. Generate Speech:
+   ```bash
+   # Basic speech generation
+   python cli.py infer generate "Hello, world!" -c checkpoint.pt -o output.wav
+
+   # Generation with custom config
+   python cli.py infer generate "Hello, world!" -c checkpoint.pt -o output.wav --config config.yaml
+   ```
+
+   Arguments:
+   - text: The text to convert to speech
+
+   Options:
+   - --checkpoint, -c: Path to model checkpoint (required)
+   - --output, -o: Path to output audio file (required)
+   - --config: Path to configuration file
+
+Data Management Commands
+----------------------
+The data management commands handle dataset preparation and validation.
+
+1. Prepare Dataset:
+   ```bash
+   # Basic dataset preparation
+   python cli.py data prepare input_dir output_dir
+
+   # Preparation with custom config
+   python cli.py data prepare input_dir output_dir -c config.yaml
+   ```
+
+   Arguments:
+   - input-dir: Directory containing raw audio files
+   - output-dir: Directory to save processed dataset
+
+   Options:
+   - --config, -c: Path to configuration file
+
+Configuration Management Commands
+------------------------------
+The configuration commands handle config file creation and inspection.
+
+1. Create Config:
+   ```bash
+   # Create new config file with defaults
+   python cli.py config create config.yaml
+   ```
+
+   Arguments:
+   - output-path: Path to save the configuration file
+
+2. Show Config:
+   ```bash
+   # Display current configuration
+   python cli.py config show config.yaml
+   ```
+
+   Arguments:
+   - config-path: Path to configuration file
+
+Directory Structure
+-----------------
+The CLI expects the following directory structure:
+
+```
+project_root/
+├── data/
+│   ├── raw/              # Raw audio files
+│   └── processed/        # Processed dataset
+├── checkpoints/          # Model checkpoints
+├── outputs/             # Generated audio files
+│   └── logs/           # Tensorboard logs
+└── configs/            # Configuration files
+```
+
+Configuration File Format
+-----------------------
+The configuration file is in YAML format and includes:
+
+```yaml
+# Data processing
+sample_rate: 22050
+n_mels: 80
+hop_length: 256
+win_length: 1024
+
+# Model architecture
+hidden_channels: 192
+filter_channels: 768
+filter_kernel_size: 3
+n_heads: 2
+n_layers: 6
+
+# Training
+batch_size: 16
+learning_rate: 1e-4
+epochs: 1000
+```
+
+Common Issues and Solutions
+-------------------------
+1. Missing Dependencies:
+   ```bash
+   pip install torch torchaudio librosa tqdm
+   ```
+
+2. CUDA Issues:
+   - Ensure CUDA is properly installed
+   - Check torch.cuda.is_available()
+   - Use --no-cuda flag if needed
+
+3. Memory Issues:
+   - Reduce batch size
+   - Use gradient accumulation
+   - Enable mixed precision training
+
+4. Data Preparation Issues:
+   - Ensure audio files are in WAV format
+   - Check sample rate matches config
+   - Verify text transcriptions are properly formatted
+
+Best Practices
+-------------
+1. Always use version control for config files
+2. Keep checkpoints regularly
+3. Monitor training with tensorboard
+4. Validate data before training
+5. Use appropriate batch sizes for your GPU
+6. Enable mixed precision for faster training
+7. Regular evaluation during training
+
+Logging and Monitoring
+---------------------
+1. Tensorboard logs are saved in outputs/logs/
+2. Training progress is shown with tqdm
+3. Checkpoints include:
+   - Model state
+   - Optimizer state
+   - Training configuration
+   - Current epoch
+
+For more information, see the implementation documentation in docs/implementation.txt. 

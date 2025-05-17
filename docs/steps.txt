@@ -1,0 +1,16 @@
+core: 
+
+- gather data 
+- set up model
+- set up training
+- validate outputs
+
+extra: 
+
+- how to set up training on the cloud? 
+- how to set up distributed training on the cloud?
+
+bonus extra: 
+
+- how to set up distributed training locally
+

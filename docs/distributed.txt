@@ -1,0 +1,22 @@
+This doc where details of general distributed training and specific to this project will also live.
+
+What is distributed training? 
+
+I suppose the first question is what training means. Training means training a machine learning model.
+This is the model.train() step if you will. The model looks at the data does backprop and adjusts its weights, i.e "learning". 
+
+Ok what does distributed training mean? this mean having a scheme where one gpu (read datacenter) shares the training with a different one, 
+this essentially removes your bottleneck which is waiting 5 hours for the model to train because now you have to wait 1 hour 
+if you distribute training to 5 servers/machines. Thats the big picture idea. 
+
+Now if you think about it for a minute you should be a bit skeptical of this because how does one do this? 
+
+Lets say we just copy over the model to each machine and give it a chunk of data to train on. if our data set had 20 data points 
+
+machine 1 gets a copy of the model and data points 1-4
+machine 2 gets a copy of the model and data points 5-8
+machine 3 gets a copy of the model and data points 9-12
+machine 4 gets a copy of the model and data points 13-16
+machine 5 gets a copy of the model and data points 17-20
+
+machine 1 makes its prediction, looks at the losses, creates gradient update based on loss
