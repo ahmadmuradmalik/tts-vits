@@ -90,7 +90,22 @@ class PosteriorEncoder(nn.Module):
         
         m, logs = torch.split(stats, [stats.size(1)//2]*2, dim=1)
         
-        return m, logs, x_lengths
+        # Sample z from N(m, exp(logs))
+        if self.training:
+            # Clamp logs to prevent exp from exploding/underflowing std
+            # Max value for logs: exp(0.5 * X) should be manageable.
+            # If X=20, exp(10) ~ 22026. If X=10, exp(5) ~ 148.
+            # Let's try a reasonable clamp, e.g. max value of 20 for logs.
+            logs_clamped = torch.clamp(logs, min=-7.0, max=7.0) # Adjusted clamp range to -7.0, 7.0
+            std = torch.exp(0.5 * logs_clamped)
+            eps = torch.randn_like(std)
+            z = m + std * eps
+            return z, m, logs_clamped 
+        else:
+            z = m
+            # During inference, logs might not be strictly necessary, but return clamped for consistency if ever used
+            logs_clamped = torch.clamp(logs, min=-7.0, max=7.0)
+        return z, m, logs_clamped # Return clamped logs
 
 class Discriminator(nn.Module):
     """
@@ -154,24 +169,22 @@ class Flow(nn.Module):
         self.post = nn.Conv1d(hidden_channels, channels//2 * 2, 1)
         
     def forward(self, x: torch.Tensor, x_mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Split input
         x1, x2 = torch.split(x, [self.channels//2]*2, dim=1)
         
-        # Compute scale and shift
         h = self.pre(x1)
         for i, layer in enumerate(self.enc):
             h = h + layer(h)
+
         stats = self.post(h)
         m, logs = torch.split(stats, [self.channels//2]*2, dim=1)
-        
-        # Apply affine transformation
-        x2 = (x2 * torch.exp(logs) + m) * x_mask
-        x = torch.cat([x1, x2], dim=1)
-        
-        # Compute log determinant
-        logdet = torch.sum(logs * x_mask, [1, 2])
-        
-        return x, logdet
+        logs_clamped = torch.clamp(logs, min=-7.0, max=7.0)
+        exp_logs = torch.exp(logs_clamped)
+        x2_transformed = (x2 * exp_logs + m) * x_mask
+        x_out = torch.cat([x1, x2_transformed], dim=1)
+        # Clamp output of Flow to prevent explosion of magnitudes
+        x_out = torch.clamp(x_out, min=-1000.0, max=1000.0)
+        logdet = torch.sum(logs_clamped * x_mask, [1, 2]) 
+        return x_out, logdet
 
 class Decoder(nn.Module):
     """
@@ -200,19 +213,14 @@ class Decoder(nn.Module):
         self.post = nn.Conv1d(hidden_channels, 80, 1)  # 80 mel bands
         
     def forward(self, z: torch.Tensor, x_mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Initial projection
         x = self.pre(z)
+        logdet_total = torch.tensor(0.0, device=z.device, dtype=z.dtype) # Match dtype of z
+        for i, flow_layer in enumerate(self.flows):
+            x, logdet_flow = flow_layer(x, x_mask)
+            logdet_total = logdet_total + logdet_flow
         
-        # Apply flow layers
-        logdet = 0
-        for i, flow in enumerate(self.flows):
-            x, logdet_flow = flow(x, x_mask)
-            logdet = logdet + logdet_flow
-        
-        # Final projection to mel-spectrogram
         y_hat = self.post(x)
-        
-        return y_hat, logdet
+        return y_hat, logdet_total
 
 class VITS(nn.Module):
     """
@@ -238,30 +246,19 @@ class VITS(nn.Module):
         
     def forward(self, x: torch.Tensor, x_lengths: torch.Tensor, 
                 y: Optional[torch.Tensor] = None, y_lengths: Optional[torch.Tensor] = None) -> dict:
-        # Create mask for variable length text sequences
         x_mask = torch.unsqueeze(torch.arange(x.size(1), device=x.device) < x_lengths.unsqueeze(1), 1).float()
-        
-        # Encode text
-        x, m_p = self.text_encoder(x, x_lengths)
-        
-        if y is not None:
-            # Create mask for variable length audio sequences
+        x_text_encoded, m_p_or_x_lengths = self.text_encoder(x, x_lengths) # m_p_or_x_lengths is x_lengths from TextEncoder
+
+        if y is not None: # Training mode
             y_mask = torch.unsqueeze(torch.arange(y['mel_spec'].size(2), device=y['mel_spec'].device) < y['audio_lengths'].unsqueeze(1), 1).float()
-            
-            # During training: encode audio features
             z, m_q, logs_q = self.posterior_encoder(y['mel_spec'], y['audio_lengths'])
-            
-            # Generate mel-spectrogram
             y_hat, logdet = self.decoder(z, y_mask)
-            
-            # Get discriminator outputs for real and generated mel spectrograms
-            d_real, f_real = self.discriminator(y['mel_spec'])  # Use real mel spectrogram
-            
-            d_hat, f_hat = self.discriminator(y_hat)  # Use generated mel spectrogram
+            d_real, f_real = self.discriminator(y['mel_spec'])
+            d_hat, f_hat = self.discriminator(y_hat)
             
             return {
-                'x': x,
-                'm_p': m_p,
+                'x': x_text_encoded, 
+                'm_p': m_p_or_x_lengths, # This is x_lengths, not a prior mean from text
                 'z': z,
                 'm_q': m_q,
                 'logs_q': logs_q,
@@ -271,8 +268,15 @@ class VITS(nn.Module):
                 'f_hat': f_hat,
                 'f': f_real
             }
-        # During inference: only return text encoding
-        return {
-            'x': x,
-            'm_p': m_p
-        } 
+        else: # Inference mode - Simplified for now to get some mel output
+            # A proper VITS inference path would involve a prior encoder to get m_p, logs_p from x_text_encoded,
+            # sample z from this prior, and then decode z.
+            # Here, we directly pass x_text_encoded to the decoder. This is a placeholder for basic testing.
+            # x_mask here is based on input text lengths.
+            y_hat_infer, logdet_infer = self.decoder(x_text_encoded, x_mask)
+            return {
+                'x': x_text_encoded, 
+                'm_p': m_p_or_x_lengths, # Still x_lengths
+                'y_hat': y_hat_infer, # Predicted mel-spectrogram
+                'logdet': logdet_infer # Log determinant from decoder
+            } 

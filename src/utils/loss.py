@@ -3,57 +3,62 @@ import torch.nn.functional as F
 from typing import Dict, Tuple
 
 def compute_loss(output: Dict, y: torch.Tensor, y_lengths: torch.Tensor) -> Tuple[torch.Tensor, Dict]:
-    """
-    Compute the VITS loss components:
-    1. Reconstruction loss (L1 loss between mel spectrograms)
-    2. KL divergence loss for variational inference
-    3. Adversarial loss for the discriminator
-    4. Feature matching loss for the discriminator
-    5. Log determinant loss from normalizing flows
-    """
-    # Create mask for variable length sequences
-    # Use the time dimension (last dimension) for the mask
     y_mask = torch.unsqueeze(torch.arange(y.size(2), device=y.device) < y_lengths.unsqueeze(1), 1).float()
+    epsilon = 1e-8
     
-    # Reconstruction loss (L1 loss between mel spectrograms)
-    # y_hat is the generated mel spectrogram from the decoder
-    # y is the target mel spectrogram
-    recon_loss = F.l1_loss(output['y_hat'] * y_mask, y * y_mask)
+    y_hat = torch.clamp(output['y_hat'], min=-1e6, max=1e6)
+    y = torch.clamp(y, min=-1e6, max=1e6)
+    recon_loss = F.l1_loss(y_hat * y_mask + epsilon, y * y_mask + epsilon)
     
-    # KL divergence loss
-    # Expand logs_q to match m_q shape
-    logs_q = output['logs_q'].unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]
-    logs_q = logs_q.expand_as(output['m_q'])  # [batch_size, channels, time]
+    logs_q = output['logs_q'] 
+    m_q = output['m_q'] 
     
-    # Compute KL divergence with numerical stability
-    # KL(q||p) = -0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-    # where sigma^2 = exp(logs)
-    kl_loss = torch.mean(-0.5 * torch.sum(
-        1 + logs_q - output['m_q'].pow(2) - torch.clamp(logs_q.exp(), min=1e-6),
-        dim=[1,2]
+    kl_loss = torch.mean(-0.5 * (
+        1.0 + 
+        logs_q - 
+        torch.clamp(m_q.pow(2), max=100.0) - 
+        torch.clamp(torch.exp(logs_q), min=epsilon, max=1e6) 
     ))
     
-    # Adversarial loss
-    adv_loss = torch.mean((1 - output['d_hat']) ** 2)
+    kl_loss = torch.clamp(kl_loss, min=0.0)
+
+    d_hat = torch.clamp(output['d_hat'], min=-1e6, max=1e6)
+    adv_loss = torch.mean(torch.clamp((1 - d_hat) ** 2, max=100.0))
     
-    # Feature matching loss
-    # Handle each feature map separately
     fm_loss = 0.0
-    for f_hat, f in zip(output['f_hat'], output['f']):
-        fm_loss += torch.mean(torch.abs(f_hat - f))
-    fm_loss = fm_loss / len(output['f_hat'])  # Average over all feature maps
+    if 'f_hat' in output and 'f' in output and output['f_hat'] is not None and output['f'] is not None:
+        for f_hat, f_val in zip(output['f_hat'], output['f']):
+            if f_hat is not None and f_val is not None:
+                f_hat = torch.clamp(f_hat, min=-1e6, max=1e6)
+                f_val = torch.clamp(f_val, min=-1e6, max=1e6)
+                fm_loss += torch.mean(torch.clamp(torch.abs(f_hat - f_val), max=100.0))
+        if output['f_hat']: 
+             fm_loss = fm_loss / len(output['f_hat'])
+    else: 
+        fm_loss = torch.tensor(0.0, device=y.device)
+
+    logdet = torch.clamp(output['logdet'], min=-100.0, max=100.0)
+    logdet_loss = -torch.mean(logdet)
     
-    # Log determinant loss (from normalizing flows)
-    logdet_loss = -torch.mean(output['logdet'])
-    
-    # Total loss
-    total_loss = recon_loss + kl_loss + adv_loss + fm_loss + logdet_loss
+    unclamped_total_loss = (
+        recon_loss +
+        kl_loss * 0.5 + 
+        adv_loss * 0.1 + 
+        fm_loss * 0.1 + 
+        logdet_loss * 0.5
+    )
+
+    total_loss = torch.clamp(
+        unclamped_total_loss, 
+        max=100.0
+    )
     
     return total_loss, {
         'recon_loss': recon_loss.item(),
         'kl_loss': kl_loss.item(),
         'adv_loss': adv_loss.item(),
-        'fm_loss': fm_loss.item(),
+        'fm_loss': fm_loss.item() if isinstance(fm_loss, torch.Tensor) else fm_loss, 
         'logdet_loss': logdet_loss.item(),
+        'unclamped_total_loss': unclamped_total_loss.item(),
         'total_loss': total_loss.item()
     } 

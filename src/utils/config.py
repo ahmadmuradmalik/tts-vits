@@ -86,17 +86,21 @@ def get_default_config() -> Dict[str, Any]:
             'save_interval': 1000,
             'warmup_epochs': 0,
             'grad_clip_thresh': 1.0,
-            'accumulation_steps': 1,
+            'accumulation_steps': 4,  # Gradient accumulation steps
+            'steps_per_epoch': 1000,  # For OneCycleLR scheduler
+            'weight_decay': 0.01,  # L2 regularization
+            'beta1': 0.8,  # Adam optimizer beta1
+            'beta2': 0.99,  # Adam optimizer beta2
             'output_dir': 'outputs',
             'checkpoint_dir': 'checkpoints',
             'log_dir': 'logs',
         },
         'loss': {
-            'lambda_kl': 1.0,
-            'lambda_fm': 2.0,
+            'lambda_kl': 0.5,  # Reduced KL loss weight
+            'lambda_fm': 0.1,  # Reduced feature matching loss weight
             'lambda_mel': 45.0,
             'lambda_dur': 1.0,
-            'lambda_adv': 1.0,
+            'lambda_adv': 0.1,  # Reduced adversarial loss weight
         },
         'inference': {
             'max_inference_len': 1000,

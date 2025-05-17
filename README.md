@@ -39,3 +39,9 @@ combined_dataset/
         ur_0001|<ur>یہ اردو جملہ ہے۔
 
 The decision is to train seperate models that know english and urdu or train one model that has additional language tokens it can train on
+
+
+
+lambda labs ssh commadnd: 
+
+ssh -i ~/.ssh/lambda-ssh-key ubuntu@165.1.71.6 
