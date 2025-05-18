@@ -1,0 +1,115 @@
+# Persistent Training on Lambda Labs with tmux
+
+This guide explains how to run your Python training script (e.g., for a VITS model) on a Lambda Labs GPU instance persistently, so it continues running even after you disconnect your SSH session or close your laptop.
+
+## 1. Setting up on the Server (First Time / Initial Run)
+
+a. **Connect to your Lambda Labs server via SSH:**
+   ```bash
+   ssh ubuntu@YOUR_SERVER_IP -i /path/to/your/lambda-ssh-key.pem
+   ```
+   (Replace `YOUR_SERVER_IP` and the path to your key).
+
+b. **Install tmux (if not already installed):**
+   ```bash
+   sudo apt update
+   sudo apt install tmux -y
+   ```
+
+c. **Start a new named tmux session:**
+   Choose a descriptive name for your session (e.g., `tts-training`).
+   ```bash
+   tmux new -s tts-training
+   ```
+   This will open a new terminal prompt *inside* the tmux session.
+
+d. **Navigate to your project directory and activate your Python environment:**
+   Inside the tmux session:
+   ```bash
+   cd ~/tts-vits  # Or your project's path
+   source .venv/bin/activate
+   ```
+
+e. **Run your training script:**
+   Execute the command you normally use for training. For example:
+   ```bash
+   python main.py \
+       --config config.yaml \
+       --data_dir /home/ubuntu/vits-ljspeech/tts_data/ljspeech_processed/train \
+       --output_dir /home/ubuntu/vits-ljspeech/tts_outputs \
+       --resume_checkpoint_path /home/ubuntu/vits-ljspeech/tts_outputs/checkpoints/latest.pt \
+       --batch_size 16 \
+       --epochs 1000
+   ```
+   (Adjust paths and parameters as needed). Training will now start within this tmux session.
+
+f. **Detach from the tmux session:**
+   To let the training run in the background and safely disconnect:
+   Press `Ctrl+b` (Control and b together), release, then press `d`.
+   You will see `[detached (from session tts-training)]` or similar.
+
+g. **Disconnect from SSH:**
+   You can now safely type `exit` in your main SSH terminal or close your SSH client/laptop. The tmux session and your training will continue on the server.
+
+## 2. Reconnecting and Monitoring
+
+a. **Connect to your Lambda Labs server via SSH again.**
+
+b. **List active tmux sessions:**
+   ```bash
+   tmux ls
+   ```
+   You should see your named session (e.g., `tts-training`) in the list.
+
+c. **Attach to the running tmux session:**
+   ```bash
+   tmux attach -t tts-training
+   ```
+   (Or `tmux a -t tts-training`). You will be reconnected to the terminal where your script is running, and you can see its live output.
+
+d. **Checking log files:**
+   Even without attaching, you can check your log files directly on the server:
+   - `tail -f /home/ubuntu/vits-ljspeech/tts_outputs/logs/training.log` (for live updates)
+   - `less /home/ubuntu/vits-ljspeech/tts_outputs/epoch_metrics.csv`
+
+e. **Using TensorBoard:**
+   1.  **SSH with Port Forwarding:** When connecting to the server, forward the TensorBoard port (default 6006):
+       ```bash
+       ssh -L localhost:6006:localhost:6006 ubuntu@YOUR_SERVER_IP -i /path/to/your/lambda-ssh-key.pem
+       ```
+   2.  **Run TensorBoard on the Server:** In a terminal on the server (can be a new tmux window/pane, or a separate SSH session):
+       ```bash
+       cd ~/tts-vits
+       source .venv/bin/activate
+       tensorboard --logdir /home/ubuntu/vits-ljspeech/tts_outputs/logs/tensorboard/ --port 6006
+       ```
+       (Adjust `--logdir` to where your TensorBoard event files are saved).
+   3.  **Access in Browser:** Open `http://localhost:6006` on your local machine's web browser.
+
+f. **Detaching again:**
+   After checking, detach from the tmux session using `Ctrl+b` then `d`.
+
+## 3. Stopping the Training / tmux Session (If Needed)
+
+a. **Attach to the tmux session** as described in step 2c.
+b. **Stop the Python script:** Press `Ctrl+c` in the terminal where the script is running.
+c. **Exit the tmux session:** Once the script is stopped, you can type `exit` in that terminal. This will close the tmux session if it was the only window/pane open in it. Or, to kill a session from outside: `tmux kill-session -t tts-training`.
+
+---
+Remember to replace placeholders like `YOUR_SERVER_IP`, `/path/to/your/lambda-ssh-key.pem`, and specific project paths with your actual values. 
+
+
+
+
+
+STEPS to moniter:
+
+ssh ubuntu@165.1.71.6 -i /Users/ahmad/Desktop/Projects/ml/tts/lambda-ssh-key.pem
+
+cd tts-vits
+
+tmux attach -t tts_training to see the training again
+
+control + b (hold) then release and press d to detach to get back to main terminal
+
+exit to end ssh
